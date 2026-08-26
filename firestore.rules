@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isMaster() { 
+      return isSignedIn() && 
+             (request.auth.token.email == "iafacilchile@gmail.com" || request.auth.uid == "rJi5qzoZcSXpjfqdRozGsLNE6Jw1"); 
+    }
+    function isOwner(data) { 
+      return isSignedIn() && data.ownerId == request.auth.uid; 
+    }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_.+@-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidQuote(data) {
+      return data.get('id', '') is string && data.get('id', '').size() <= 128 &&
+             data.get('clientInfo', {}) is map &&
+             data.get('items', []) is list &&
+             (data.get('ownerId', null) == null || data.ownerId is string) &&
+             (data.get('totalBruto', 0) is number);
+    }
+
+    function isValidClient(data) {
+      return data.get('name', '') is string && data.get('name', '').size() <= 200 &&
+             data.get('rut', '') is string && data.get('rut', '').size() <= 50 &&
+             (data.get('email', '') == '' || (data.email is string && data.email.size() <= 100)) &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster());
+    }
+
+    function isValidCatalogItem(data) {
+      return data.get('name', '') is string && data.get('name', '').size() <= 200 &&
+             data.get('unitPrice', 0) is number &&
+             (data.get('pdfUrl', '') == '' || (data.pdfUrl is string && data.pdfUrl.size() <= 1500000)) &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster());
+    }
+
+    function isValidExpense(data) {
+      return data.get('name', '') is string && data.get('name', '').size() <= 200 &&
+             data.get('category', '') in ["fijo", "variable", "mkt", "personal", "sueldo", "arriendo", "retiro", "impuesto", "interes", "amortizacion", "otro"] &&
+             data.get('amount', 0) is number &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster()) &&
+             (data.get('date', null) == request.time || data.date is timestamp);
+    }
+
+    function isValidCreditLine(data) {
+      return data.get('institution', '') is string && data.get('institution', '').size() <= 200 &&
+             data.get('totalLimit', 0) is number &&
+             data.get('usedAmount', 0) is number &&
+             data.get('cutoffDay', 0) is number && data.cutoffDay >= 1 && data.cutoffDay <= 31 &&
+             data.get('paymentDay', 0) is number && data.paymentDay >= 1 && data.paymentDay <= 31 &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster()) &&
+             (data.get('updatedAt', null) == request.time || data.updatedAt is timestamp);
+    }
+
+    function isValidCashTransaction(data) {
+      return data.get('concept', '') is string && data.get('concept', '').size() <= 200 &&
+             data.get('type', '') in ["in", "out"] &&
+             data.get('amount', 0) is number &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster()) &&
+             (data.get('date', null) == request.time || data.date is timestamp);
+    }
+    
+    function isValidShrinkage(data) {
+      return data.get('productName', '') is string && data.get('productName', '').size() <= 300 &&
+             data.get('quantity', 0) is number &&
+             data.get('unitCost', 0) is number &&
+             data.get('reason', '') in ["malo", "devuelto", "vencido", "otro"] &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster()) &&
+             (data.get('date', null) == request.time || data.date is timestamp);
+    }
+
+    function isValidPurchase(data) {
+      return data.get('provider', '') is string &&
+             data.get('documentNumber', '') is string &&
+             data.get('netAmount', 0) is number &&
+             data.get('ivaAmount', 0) is number &&
+             data.get('totalAmount', 0) is number &&
+             data.get('category', '') in ["mercaderia", "insumos", "servicios", "activos", "otros", "herramientas", "publicidad"] &&
+             (data.get('ownerId', '') == request.auth.uid || isMaster());
+    }
+
+    match /users/{userId} {
+      allow read: if isMaster() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isMaster() || (isSignedIn() && request.auth.uid == userId);
+    }
+
+    match /clientes/{clientId} {
+      allow read: if isSignedIn() && (isMaster() || resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(clientId) && isValidClient(incoming()) && (incoming().get('createdAt', null) == request.time || incoming().createdAt is timestamp);
+      allow update: if isSignedIn() && (isMaster() || (isOwner(existing()) && isValidClient(incoming()) && incoming().ownerId == existing().ownerId));
+      allow delete: if isSignedIn() && (isMaster() || isOwner(existing()));
+    }
+
+    match /catalog/{itemId} {
+      allow read: if isSignedIn() && (isMaster() || isOwner(existing()));
+      allow create: if isSignedIn() && isValidId(itemId) && isValidCatalogItem(incoming());
+      allow update: if isSignedIn() && (isMaster() || (isOwner(existing()) && isValidCatalogItem(incoming()) && (incoming().ownerId == request.auth.uid)));
+      allow delete: if isSignedIn() && (isMaster() || isOwner(existing()));
+    }
+
+    match /presupuestos/{quoteId} {
+      allow get: if true;
+      allow list: if isMaster() || (isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.get('ownerId', null) == null));
+      allow create: if isSignedIn() && 
+                      isValidQuote(incoming()) && 
+                      (incoming().get('ownerId', null) == request.auth.uid || incoming().get('ownerId', null) == null);
+      allow update: if isMaster() || 
+                       (isSignedIn() && isOwner(existing()) && (incoming().get('ownerId', existing().ownerId) == existing().ownerId)) ||
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'visto', 'fechaVista', 'vistas', 'signature', 'selectedOptionals', 'activeOptionals', 'totalBruto', 'totalProposal']));
+      allow delete: if isMaster() || (isSignedIn() && (isOwner(existing()) || existing().get('ownerId', null) == null));
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isSignedIn() && (isMaster() || resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(expenseId) && isValidExpense(incoming());
+      allow update: if isSignedIn() && (isMaster() || (isOwner(existing()) && isValidExpense(incoming()) && incoming().ownerId == existing().ownerId));
+      allow delete: if isSignedIn() && (isMaster() || isOwner(existing()));
+    }
+
+    match /creditLines/{creditId} {
+      allow read: if isSignedIn() && (isMaster() || resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(creditId) && isValidCreditLine(incoming());
+      allow update: if isSignedIn() && (isMaster() || (isOwner(existing()) && isValidCreditLine(incoming()) && incoming().ownerId == existing().ownerId));
+      allow delete: if isSignedIn() && (isMaster() || isOwner(existing()));
+    }
+
+    match /cashTransactions/{transactionId} {
+      allow read: if isMaster() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(transactionId) && isValidCashTransaction(incoming());
+      allow update: if isMaster() || (isSignedIn() && isOwner(existing()) && isValidCashTransaction(incoming()) && incoming().ownerId == existing().ownerId);
+      allow delete: if isMaster() || (isSignedIn() && isOwner(existing()));
+    }
+
+    match /mermas/{mermaId} {
+      allow read: if isMaster() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(mermaId) && isValidShrinkage(incoming());
+      allow update: if isMaster() || (isSignedIn() && isOwner(existing()) && isValidShrinkage(incoming()) && incoming().ownerId == existing().ownerId);
+      allow delete: if isMaster() || (isSignedIn() && isOwner(existing()));
+    }
+
+    match /importaciones/{importId} {
+      allow read: if isMaster() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(importId) && (incoming().ownerId == request.auth.uid || isMaster());
+      allow update: if isMaster() || (isSignedIn() && isOwner(existing()) && incoming().ownerId == existing().ownerId);
+      allow delete: if isMaster() || (isSignedIn() && isOwner(existing()));
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isSignedIn() && (isMaster() || resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(purchaseId) && isValidPurchase(incoming());
+      allow update: if isSignedIn() && (isMaster() || (isOwner(existing()) && isValidPurchase(incoming()) && incoming().ownerId == existing().ownerId));
+      allow delete: if isSignedIn() && (isMaster() || isOwner(existing()));
+    }
+  }
+}

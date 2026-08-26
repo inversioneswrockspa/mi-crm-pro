@@ -1,0 +1,6 @@
+{
+  "name": "MI CRM PRO",
+  "description": "Sistema avanzado de presupuestos y CRM inteligente para gestión de clientes y estructuración de negocios.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["CRM", "Logística", "IA"]
+}

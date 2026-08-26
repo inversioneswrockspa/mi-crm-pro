@@ -1,0 +1,216 @@
+{
+  "entities": {
+    "client": {
+      "title": "Cliente",
+      "description": "Información centralizada del cliente, RUT y notas de terreno",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "Nombre o Razón Social" },
+        "rut": { "type": "string", "description": "Identificador fiscal" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "address": { "type": "string" },
+        "terrainNotes": { "type": "string", "description": "Notas técnicas del terreno" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "rut", "ownerId"]
+    },
+    "quote": {
+      "title": "Quote",
+      "description": "A customized security system quotation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique reference ID" },
+        "clientInfo": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "company": { "type": "string" },
+            "address": { "type": "string" },
+            "date": { "type": "string" }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "quantity": { "type": "number" },
+              "unitPrice": { "type": "number" }
+            }
+          }
+        },
+        "requirements": { "type": "string" },
+        "status": { 
+          "type": "string", 
+          "enum": ["PENDING", "APPROVED", "REJECTED"],
+          "description": "Lifecycle state of the quote (PENDING, APPROVED, REJECTED)"
+        },
+        "totalBruto": { "type": "number", "description": "The final total including taxes" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "clientInfo", "items", "status", "totalBruto", "ownerId", "createdAt"]
+    },
+    "catalogItem": {
+      "title": "Item de Catálogo",
+      "description": "Producto o servicio predefinido para uso frecuente",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "unit": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "unitPrice", "ownerId"]
+    },
+    "expense": {
+      "title": "Gasto Operativo",
+      "description": "Registro de gasto OpEx para control financiero",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "Concepto del gasto" },
+        "category": { 
+          "type": "string", 
+          "enum": ["fijo", "variable", "mkt", "personal", "sueldo", "arriendo", "retiro", "impuesto", "interes", "amortizacion", "otro"]
+        },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["name", "category", "amount", "ownerId", "date"]
+    },
+    "creditLine": {
+      "title": "Línea de Crédito",
+      "description": "Configuración de crédito bancario o comercial",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "institution": { "type": "string" },
+        "totalLimit": { "type": "number" },
+        "usedAmount": { "type": "number" },
+        "cutoffDay": { "type": "number" },
+        "paymentDay": { "type": "number" },
+        "ownerId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["institution", "totalLimit", "usedAmount", "cutoffDay", "paymentDay", "ownerId"]
+    },
+    "cashTransaction": {
+      "title": "Transacción de Caja",
+      "description": "Movimiento manual de efectivo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "concept": { "type": "string" },
+        "type": { "type": "string", "enum": ["in", "out"] },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["concept", "type", "amount", "date", "ownerId"]
+    },
+    "shrinkage": {
+      "title": "Merma/Devolución",
+      "description": "Registro de pérdida de inventario o devolución que genera costo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitCost": { "type": "number" },
+        "reason": { "type": "string", "enum": ["malo", "devuelto", "vencido", "otro"] },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["productName", "quantity", "unitCost", "reason", "ownerId", "date"]
+    },
+    "importBatch": {
+      "title": "Lote de Importación",
+      "description": "Registro de un lote de productos importados con su inversión y costos asociados",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "totalInvestment": { "type": "number" },
+        "totalExpenses": { "type": "number" },
+        "ownerId": { "type": "string" },
+        "notes": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["name", "totalInvestment", "ownerId", "date"]
+    },
+    "purchase": {
+      "title": "Compra con Factura",
+      "description": "Registro de compra formal con detalle de IVA y montos netos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "provider": { "type": "string" },
+        "documentNumber": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "netAmount": { "type": "number" },
+        "ivaAmount": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "category": { "type": "string", "enum": ["mercaderia", "insumos", "servicios", "activos", "otros", "herramientas", "publicidad"] },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "isPaid": { "type": "boolean" },
+        "paymentMethod": { "type": "string", "enum": ["efectivo", "transferencia", "tarjeta", "credito", "cheque"] }
+      },
+      "required": ["provider", "documentNumber", "netAmount", "ivaAmount", "totalAmount", "category", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/clientes/{clientId}": {
+      "schema": "client",
+      "description": "Collection of client profiles"
+    },
+    "/presupuestos/{quoteId}": {
+      "schema": "quote",
+      "description": "Collection of quotations"
+    },
+    "/catalog/{itemId}": {
+      "schema": "catalogItem",
+      "description": "Collection of master products and services"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "expense",
+      "description": "Collection of operational expenses"
+    },
+    "/creditLines/{creditId}": {
+      "schema": "creditLine",
+      "description": "Collection of credit lines and leverage tracking"
+    },
+    "/cashTransactions/{transactionId}": {
+      "schema": "cashTransaction",
+      "description": "Collection of manual cash movements"
+    },
+    "/mermas/{mermaId}": {
+      "schema": "shrinkage",
+      "description": "Collection of inventory losses and returns"
+    },
+    "/importaciones/{importId}": {
+      "schema": "importBatch",
+      "description": "Collection of historical import batches"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": "purchase",
+      "description": "Collection of formal purchase records for tax tracking"
+    }
+  }
+}
