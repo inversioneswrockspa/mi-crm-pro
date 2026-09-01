@@ -111,6 +111,10 @@ export interface CatalogItem {
   initialStock?: number;
   unitCost?: number;
   deliveryType?: 'bodega' | 'full_1d' | 'local_3d' | 'import_7d';
+  enBodega?: boolean;
+  modalidad?: 'stock' | 'venta_calzada' | 'agotado';
+  tiempoEntrega?: string;
+  precioVentaFinal?: number;
 }
 
 export interface ClientAccount {

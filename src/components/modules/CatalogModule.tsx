@@ -21,7 +21,17 @@ interface CatalogModuleProps {
   catalogSearchTerm: string;
   setCatalogSearchTerm: (term: string) => void;
   handleClearCatalog: () => void;
-  newCatalogItem: { id: string; name: string; price: string; desc: string; pdfUrl: string };
+  newCatalogItem: { 
+    id: string; 
+    name: string; 
+    price: string; 
+    desc: string; 
+    pdfUrl: string;
+    enBodega?: boolean;
+    modalidad?: 'stock' | 'venta_calzada' | 'agotado';
+    tiempoEntrega?: string;
+    precioVentaFinal?: string;
+  };
   setNewCatalogItem: React.Dispatch<React.SetStateAction<any>>;
   saveNewCatalogItem: () => void;
   handleUpdateCatalogItem: (id: string) => void;
@@ -121,8 +131,60 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
             placeholder="Costo Neto Adquisición ($)" 
             className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
             value={newCatalogItem.price ? formatCLP(newCatalogItem.price) : ''}
-            onChange={e => setNewCatalogItem({...newCatalogItem, price: parseCLP(e.target.value)})}
+            onChange={e => setNewCatalogItem({...newCatalogItem, price: parseCLP(e.target.value).toString()})}
           />
+
+          {/* 4 nuevos campos */}
+          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-4 py-2">
+            <span className="text-xs font-bold text-slate-700">En Bodega</span>
+            <button
+              type="button"
+              onClick={() => setNewCatalogItem((prev: any) => ({ ...prev, enBodega: !prev.enBodega }))}
+              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                newCatalogItem.enBodega ? 'bg-emerald-500' : 'bg-slate-300'
+              }`}
+            >
+              <div
+                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                  newCatalogItem.enBodega ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          <select
+            value={newCatalogItem.modalidad || 'stock'}
+            onChange={e => setNewCatalogItem({
+              ...newCatalogItem,
+              modalidad: e.target.value as any,
+              tiempoEntrega: e.target.value !== 'venta_calzada' ? '' : (newCatalogItem.tiempoEntrega || '')
+            })}
+            className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
+          >
+            <option value="stock">En Stock</option>
+            <option value="venta_calzada">Venta Calzada</option>
+            <option value="agotado">Agotado</option>
+          </select>
+
+          <input 
+            type="text"
+            placeholder="Tiempo de Entrega (ej: 3-5 días)"
+            disabled={newCatalogItem.modalidad !== 'venta_calzada'}
+            className={`bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none ${
+              newCatalogItem.modalidad !== 'venta_calzada' ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''
+            }`}
+            value={newCatalogItem.modalidad === 'venta_calzada' ? (newCatalogItem.tiempoEntrega || '') : ''}
+            onChange={e => setNewCatalogItem({...newCatalogItem, tiempoEntrega: e.target.value})}
+          />
+
+          <input 
+            type="text"
+            placeholder="Precio Venta Final ($)"
+            className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+            value={newCatalogItem.precioVentaFinal ? formatCLP(newCatalogItem.precioVentaFinal) : ''}
+            onChange={e => setNewCatalogItem({...newCatalogItem, precioVentaFinal: parseCLP(e.target.value).toString()})}
+          />
+
           <div className="md:col-span-1">
             <input 
               type="file" 
@@ -149,13 +211,13 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
           </div>
           <textarea 
             placeholder="Descripción técnica para el cliente..." 
-            className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none md:col-span-3"
+            className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none md:col-span-2"
             value={newCatalogItem.desc}
             onChange={e => setNewCatalogItem({...newCatalogItem, desc: e.target.value})}
           />
           <button 
             onClick={saveNewCatalogItem}
-            className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+            className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 md:col-span-1"
           >
             <Plus size={16} /> Añadir al Catálogo
           </button>
@@ -168,8 +230,8 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="text-left p-4 text-[10px] uppercase font-bold text-slate-400 rounded-tl-lg">Imagen</th>
               <th className="text-left p-4 text-[10px] uppercase font-bold text-slate-400">ID / Referencia</th>
-              <th className="text-left p-4 text-[10px] uppercase font-bold text-slate-400">Descripción al Cliente</th>
-              <th className="text-right p-4 text-[10px] uppercase font-bold text-slate-400">Costo Neto Adquisición (Proveedor)</th>
+              <th className="text-left p-4 text-[10px] uppercase font-bold text-slate-400">Descripción / Detalles</th>
+              <th className="text-right p-4 text-[10px] uppercase font-bold text-slate-400">Precios (Costo / Venta)</th>
               <th className="text-center p-4 text-[10px] uppercase font-bold text-slate-400 rounded-tr-lg w-32">Acción</th>
             </tr>
           </thead>
@@ -231,7 +293,7 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
                           <img src={getSafeImageUrl(img)} className="w-full h-full object-cover" />
                           <button 
                             onClick={() => {
-                              // We should probably pass a function for this too, but for now we'll handle it inside or pass setCatalog
+                              // Handled in parent context
                             }}
                             className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover/thumb:opacity-100 transition-all scale-75 hidden"
                           >
@@ -285,8 +347,51 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
                       <textarea 
                         value={editCatalogData.description ?? item.description}
                         onChange={e => setEditCatalogData(prev => ({...prev, description: e.target.value}))}
-                        className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 focus:ring-1 focus:ring-indigo-500 outline-none h-16"
+                        className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 focus:ring-1 focus:ring-indigo-500 outline-none h-14"
                       />
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200">
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-2 py-1">
+                          <span className="text-[10px] font-bold text-slate-600">En Bodega</span>
+                          <button
+                            type="button"
+                            onClick={() => setEditCatalogData(prev => ({ ...prev, enBodega: !(prev.enBodega ?? item.enBodega ?? false) }))}
+                            className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors ${
+                              (editCatalogData.enBodega ?? item.enBodega ?? false) ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          >
+                            <div
+                              className={`bg-white w-3 h-3 rounded-full shadow-md transform transition-transform ${
+                                (editCatalogData.enBodega ?? item.enBodega ?? false) ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <select
+                          value={editCatalogData.modalidad ?? item.modalidad ?? 'stock'}
+                          onChange={e => setEditCatalogData(prev => ({
+                            ...prev,
+                            modalidad: e.target.value as any,
+                            tiempoEntrega: e.target.value !== 'venta_calzada' ? '' : (prev.tiempoEntrega ?? item.tiempoEntrega ?? '')
+                          }))}
+                          className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-bold outline-none text-slate-800"
+                        >
+                          <option value="stock">En Stock</option>
+                          <option value="venta_calzada">Venta Calzada</option>
+                          <option value="agotado">Agotado</option>
+                        </select>
+                      </div>
+
+                      {(editCatalogData.modalidad ?? item.modalidad) === 'venta_calzada' && (
+                        <input 
+                          type="text"
+                          placeholder="Tiempo de Entrega (ej: 3-5 días)"
+                          value={editCatalogData.tiempoEntrega ?? item.tiempoEntrega ?? ''}
+                          onChange={e => setEditCatalogData(prev => ({ ...prev, tiempoEntrega: e.target.value }))}
+                          className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none"
+                        />
+                      )}
+
                       <div className="flex items-center gap-2">
                         <input 
                           type="file" 
@@ -305,7 +410,7 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
                         />
                         <label 
                           htmlFor={`edit-pdf-${item.id}`}
-                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-black uppercase cursor-pointer transition-all ${(editCatalogData.pdfUrl || item.pdfUrl) ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-1 border rounded-lg text-[10px] font-black uppercase cursor-pointer transition-all ${(editCatalogData.pdfUrl || item.pdfUrl) ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
                         >
                           <Paperclip size={12} />
                           {(editCatalogData.pdfUrl || item.pdfUrl) ? 'Cambiar Ficha PDF' : 'Añadir Ficha PDF'}
@@ -324,24 +429,57 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
                   ) : (
                     <>
                       <div className="font-bold text-slate-800 mb-1">{item.name}</div>
-                      <div className="line-clamp-2">{item.description}</div>
+                      <div className="line-clamp-2 text-slate-500 mb-2">{item.description}</div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.enBodega ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                          {item.enBodega ? 'En Bodega ✓' : 'No en Bodega'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                          item.modalidad === 'venta_calzada' ? 'bg-amber-100 text-amber-800' :
+                          item.modalidad === 'agotado' ? 'bg-rose-100 text-rose-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {item.modalidad === 'venta_calzada' ? 'Venta Calzada' : item.modalidad === 'agotado' ? 'Agotado' : 'En Stock'}
+                        </span>
+                        {item.modalidad === 'venta_calzada' && item.tiempoEntrega && (
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[9px] font-bold">
+                            ⏱️ {item.tiempoEntrega}
+                          </span>
+                        )}
+                      </div>
                     </>
                   )}
                 </td>
                 <td className="p-4 text-right">
                   {isEditing ? (
-                    <div className="flex items-center justify-end gap-1">
-                      <span className="text-slate-400 font-mono font-bold">$</span>
-                      <input 
-                        type="text"
-                        value={editCatalogData.unitPrice !== undefined ? formatCLP(editCatalogData.unitPrice) : formatCLP(item.unitPrice)}
-                        onChange={e => setEditCatalogData(prev => ({...prev, unitPrice: parseCLP(e.target.value)}))}
-                        className="w-28 text-right bg-white border border-slate-200 rounded px-2 py-1 font-mono font-bold text-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Costo:</span>
+                        <input 
+                          type="text"
+                          value={editCatalogData.unitPrice !== undefined ? formatCLP(editCatalogData.unitPrice) : formatCLP(item.unitPrice)}
+                          onChange={e => setEditCatalogData(prev => ({...prev, unitPrice: parseCLP(e.target.value)}))}
+                          className="w-24 text-right bg-white border border-slate-200 rounded px-2 py-1 font-mono text-xs font-bold text-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Venta:</span>
+                        <input 
+                          type="text"
+                          value={formatCLP(editCatalogData.precioVentaFinal ?? item.precioVentaFinal ?? item.unitPrice ?? 0)}
+                          onChange={e => setEditCatalogData(prev => ({...prev, precioVentaFinal: parseCLP(e.target.value)}))}
+                          className="w-24 text-right bg-white border border-emerald-300 rounded px-2 py-1 font-mono text-xs font-bold text-emerald-700 focus:ring-1 focus:ring-emerald-500 outline-none"
+                        />
+                      </div>
                     </div>
                   ) : (
-                    <div className="font-mono font-bold text-slate-900 bg-emerald-50 text-emerald-700 px-3 py-1 rounded inline-block text-sm">
-                      ${item.unitPrice.toLocaleString()}
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">
+                        Costo: <span className="font-mono text-slate-700">${(item.unitPrice || 0).toLocaleString('es-CL')}</span>
+                      </div>
+                      <div className="font-mono font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded inline-block text-xs border border-emerald-200">
+                        Venta: ${((item.precioVentaFinal || item.unitPrice || 0)).toLocaleString('es-CL')}
+                      </div>
                     </div>
                   )}
                 </td>
@@ -375,7 +513,11 @@ export const CatalogModule: React.FC<CatalogModuleProps> = ({
                             setEditCatalogData({
                               name: item.name,
                               description: item.description,
-                              unitPrice: item.unitPrice
+                              unitPrice: item.unitPrice,
+                              enBodega: item.enBodega ?? false,
+                              modalidad: item.modalidad ?? 'stock',
+                              tiempoEntrega: item.tiempoEntrega ?? '',
+                              precioVentaFinal: item.precioVentaFinal ?? item.unitPrice ?? 0
                             });
                           }}
                           className="p-1.5 bg-white border border-slate-200 text-slate-500 rounded hover:bg-slate-50 transition shadow-sm"
