@@ -124,6 +124,50 @@ Quedamos atentos a tus datos para emitir la Factura y reservar tu unidad.`;
     window.open(url, '_blank');
   };
 
+  const formatDate = (val: any): string => {
+    if (!val) return new Date().toLocaleDateString();
+    if (typeof val === 'string') return val.split('T')[0];
+    if (val?.toDate && typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
+    if (val?.seconds) return new Date(val.seconds * 1000).toLocaleDateString();
+    if (val instanceof Date) return val.toLocaleDateString();
+    return new Date().toLocaleDateString();
+  };
+
+  const getClientQuotes = (client: any, quotes: any[]) => {
+    const normPhone = (p?: string) => {
+      if (!p) return '';
+      const digits = p.replace(/\D/g, '');
+      return digits.length >= 9 ? digits.slice(-9) : digits;
+    };
+
+    const clientPhoneNorm = normPhone(client.phone);
+    const clientRutNorm = (client.rut || '').replace(/[^0-9kK]/g, '').toLowerCase();
+    const clientEmailNorm = (client.email || '').trim().toLowerCase();
+    const clientNameNorm = (client.name || '').trim().toLowerCase();
+    const clientCompNorm = (client.company || '').trim().toLowerCase();
+
+    return quotes.filter(q => {
+      const qInfo = q.clientInfo || {};
+      const qPhoneNorm = normPhone(qInfo.phone);
+      const qRutNorm = (qInfo.rut || '').replace(/[^0-9kK]/g, '').toLowerCase();
+      const qEmailNorm = (qInfo.email || '').trim().toLowerCase();
+      const qNameNorm = (qInfo.name || q.clientName || '').trim().toLowerCase();
+      const qCompNorm = (qInfo.company || '').trim().toLowerCase();
+
+      // 1. Phone match (strongest link)
+      if (clientPhoneNorm && qPhoneNorm && clientPhoneNorm === qPhoneNorm) return true;
+      // 2. RUT match
+      if (clientRutNorm && qRutNorm && clientRutNorm === qRutNorm) return true;
+      // 3. Email match
+      if (clientEmailNorm && qEmailNorm && clientEmailNorm === qEmailNorm) return true;
+      // 4. Exact Company or Name match
+      if (clientCompNorm && qCompNorm && clientCompNorm === qCompNorm) return true;
+      if (clientNameNorm && qNameNorm && clientNameNorm === qNameNorm) return true;
+
+      return false;
+    });
+  };
+
   const filteredClients = useMemo(() => {
     return clients.filter(c => 
       (c.name || '').toLowerCase().includes((clientSearchTerm || '').toLowerCase()) ||
@@ -319,62 +363,125 @@ Quedamos atentos a tus datos para emitir la Factura y reservar tu unidad.`;
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-              {filteredClients.map(client => (
-                <motion.div 
-                  key={client.id}
-                  layout
-                  className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-indigo-200 hover:shadow-lg transition-all group relative overflow-hidden"
-                >
-                  <div className="flex justify-between items-start mb-4 relative z-10">
+              {filteredClients.map(client => {
+                const clientQuotes = getClientQuotes(client, previousQuotes);
+                const totalBought = clientQuotes.reduce((acc, q) => acc + (q.totalProposal || q.totalBruto || 0), 0);
+
+                return (
+                  <motion.div 
+                    key={client.id}
+                    layout
+                    className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-indigo-200 hover:shadow-lg transition-all group relative overflow-hidden flex flex-col justify-between"
+                  >
                     <div>
-                      <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight">{client.name}</h4>
-                      <p className="text-[10px] text-indigo-600 font-mono font-bold">{client.rut}</p>
-                    </div>
-                    <div className="flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => startEditClient(client)}
-                        className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-                        title="Editar Cliente"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        onClick={(e) => deleteClient(e, client.id)}
-                        className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                        title="Eliminar Cliente"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 border-t border-slate-50 pt-4 relative z-10">
-                    <div className="flex items-center gap-3 text-xs text-slate-600">
-                      <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
-                        <Briefcase size={14} className="text-slate-400" />
-                      </div>
-                      <span className="font-bold uppercase text-[9px] tracking-tight">{client.company || 'Sin Sociedad Declarada'}</span>
-                    </div>
-                    {client.phone && (
-                      <div className="flex items-center gap-3 text-xs text-slate-600">
-                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
-                          <Clock size={14} className="text-slate-400" />
+                      <div className="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                          <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight">{client.name}</h4>
+                          <p className="text-[10px] text-indigo-600 font-mono font-bold">{client.rut}</p>
                         </div>
-                        <span className="font-mono text-[10px]">{client.phone}</span>
-                      </div>
-                    )}
-                    {client.email && (
-                      <div className="flex items-center gap-3 text-xs text-slate-600">
-                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
-                          <Send size={14} className="text-slate-400" />
+                        <div className="flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => startEditClient(client)}
+                            className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+                            title="Editar Cliente"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button 
+                            onClick={(e) => deleteClient(e, client.id)}
+                            className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                            title="Eliminar Cliente"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
-                        <span className="text-[10px] truncate">{client.email}</span>
                       </div>
-                    )}
-                  </div>
-                  {/* Decorator */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 group-hover:bg-indigo-50/50 transition-colors pointer-events-none"></div>
-                </motion.div>
-              ))}
+
+                      <div className="grid grid-cols-1 gap-2 border-t border-slate-50 pt-4 relative z-10">
+                        <div className="flex items-center gap-3 text-xs text-slate-600">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
+                            <Briefcase size={14} className="text-slate-400" />
+                          </div>
+                          <span className="font-bold uppercase text-[9px] tracking-tight">{client.company || 'Sin Sociedad Declarada'}</span>
+                        </div>
+                        {client.phone && (
+                          <div className="flex items-center gap-3 text-xs text-slate-600">
+                            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
+                              <Clock size={14} className="text-slate-400" />
+                            </div>
+                            <span className="font-mono text-[10px]">{client.phone}</span>
+                          </div>
+                        )}
+                        {client.email && (
+                          <div className="flex items-center gap-3 text-xs text-slate-600">
+                            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
+                              <Send size={14} className="text-slate-400" />
+                            </div>
+                            <span className="text-[10px] truncate">{client.email}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Historial de Compras */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 relative z-10">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                          <ShoppingBag size={13} className="text-indigo-600" />
+                          Historial de Compras ({clientQuotes.length})
+                        </span>
+                        {totalBought > 0 && (
+                          <span className="text-[10px] font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
+                            Total: {formatCLP(totalBought)}
+                          </span>
+                        )}
+                      </div>
+
+                      {clientQuotes.length === 0 ? (
+                        <div className="p-3 bg-slate-50/80 rounded-xl border border-dashed border-slate-200 text-center text-[10px] font-medium text-slate-400 italic">
+                          Sin compras registradas aún
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                          {clientQuotes.map((quote: any) => {
+                            const items = quote.items || [];
+                            const prodSummary = items.map((i: any) => i.name || i.description || 'Producto').join(', ') || 'Productos varios';
+                            const qTotal = quote.totalProposal || quote.totalBruto || 0;
+                            const statusStr = (quote.status || 'sent').toLowerCase();
+
+                            return (
+                              <div key={quote.id || quote.quoteRefId} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 hover:bg-indigo-50/50 transition-colors text-left space-y-1">
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-bold text-slate-500 font-mono">
+                                    {formatDate(quote.date || quote.createdAt)}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-md font-black text-[8px] uppercase tracking-wider ${
+                                    statusStr === 'paid' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                    statusStr === 'approved' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
+                                    'bg-amber-100 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    {statusStr === 'paid' ? 'Pagada' : statusStr === 'approved' ? 'Aprobada' : 'Cotización'}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-bold text-slate-800 line-clamp-1">
+                                  {prodSummary}
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-mono">
+                                  <span className="text-slate-400">Ref: {quote.quoteRefId || quote.id}</span>
+                                  <span className="font-black text-slate-900">{formatCLP(qTotal)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Decorator */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 group-hover:bg-indigo-50/50 transition-colors pointer-events-none"></div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>

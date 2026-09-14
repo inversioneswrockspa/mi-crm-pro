@@ -86,24 +86,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       setCatalog(fetchedItems);
       setIsInitialLoading(false);
 
-      // Sincronización automática con n8n Cloud
-      if (fetchedItems.length > 0) {
-        try {
-          fetch('https://wrockcoquimb.app.n8n.cloud/webhook/wrock-sync-catalog', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              source: 'MI_CRM_PRO_LIVE',
-              catalog: fetchedItems.map(item => ({
-                id: item.id,
-                name: item.name,
-                description: item.description || '',
-                unitPrice: item.unitPrice || 0
-              }))
-            })
-          }).catch(() => {});
-        } catch (e) {}
-      }
+
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, "catalog");
       setIsInitialLoading(false);

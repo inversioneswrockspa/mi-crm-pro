@@ -23,8 +23,14 @@ service cloud.firestore {
       return data.get('id', '') is string && data.get('id', '').size() <= 128 &&
              data.get('clientInfo', {}) is map &&
              data.get('items', []) is list &&
-             (data.get('ownerId', null) == null || data.ownerId is string) &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster()) &&
              (data.get('totalBruto', 0) is number);
+    }
+
+    function isValidPromoter(data) {
+      return data.get('name', '') is string && data.get('name', '').size() <= 200 &&
+             data.get('code', '') is string && data.get('code', '').size() <= 50 &&
+             data.get('ownerId', '') is string && (data.ownerId == request.auth.uid || isMaster());
     }
 
     function isValidClient(data) {
@@ -107,14 +113,21 @@ service cloud.firestore {
 
     match /presupuestos/{quoteId} {
       allow get: if true;
-      allow list: if isMaster() || (isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.get('ownerId', null) == null));
+      allow list: if isMaster() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
       allow create: if isSignedIn() && 
                       isValidQuote(incoming()) && 
-                      (incoming().get('ownerId', null) == request.auth.uid || incoming().get('ownerId', null) == null);
+                      (incoming().ownerId == request.auth.uid || isMaster());
       allow update: if isMaster() || 
                        (isSignedIn() && isOwner(existing()) && (incoming().get('ownerId', existing().ownerId) == existing().ownerId)) ||
                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'visto', 'fechaVista', 'vistas', 'signature', 'selectedOptionals', 'activeOptionals', 'totalBruto', 'totalProposal']));
-      allow delete: if isMaster() || (isSignedIn() && (isOwner(existing()) || existing().get('ownerId', null) == null));
+      allow delete: if isMaster() || (isSignedIn() && isOwner(existing()));
+    }
+
+    match /promoters/{promoterId} {
+      allow read: if isSignedIn() && (isMaster() || resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(promoterId) && isValidPromoter(incoming());
+      allow update: if isSignedIn() && (isMaster() || (isOwner(existing()) && isValidPromoter(incoming()) && incoming().ownerId == existing().ownerId));
+      allow delete: if isSignedIn() && (isMaster() || isOwner(existing()));
     }
 
     match /expenses/{expenseId} {

@@ -260,6 +260,7 @@ export interface Promoter {
   totalEarned: number;
   totalPaid: number;
   createdAt: string;
+  ownerId?: string;
 }
 
 export interface CommissionRecord {

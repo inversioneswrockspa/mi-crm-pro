@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Users, UserPlus, DollarSign, Award, Package, Search, Trash2, ShoppingBag, Pencil, UserX, UserCheck, X, Check, CreditCard, Calendar, CheckCircle2 } from 'lucide-react';
 import { Promoter, CommissionRecord } from '../types';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '../lib/firebase';
+import { collection, doc, setDoc, deleteDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { removeUndefined, handleFirestoreError, OperationType } from '../lib/utils';
 
 interface PromotersModuleProps {
   previousQuotes?: any[];
@@ -21,24 +25,58 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
   onPromotersChange,
   onRegisterCashOutflow
 }) => {
-  const [internalPromoters, setInternalPromoters] = useState<Promoter[]>(() => {
-    if (propsPromoters && propsPromoters.length > 0) return propsPromoters;
-    const saved = localStorage.getItem('mi_crm_promoters');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return DEFAULT_PROMOTERS;
-  });
+  const [user] = useAuthState(auth);
+  const [firestorePromoters, setFirestorePromoters] = useState<Promoter[]>([]);
 
-  const promoters = propsPromoters || internalPromoters;
+  // Sincronizar promotores desde Firestore filtrando estrictamente por ownerId
+  useEffect(() => {
+    if (!user) return;
+    const effectiveUid = localStorage.getItem('impersonatedUserId') || user.uid;
 
-  const updatePromotersList = (updated: Promoter[]) => {
-    setInternalPromoters(updated);
-    localStorage.setItem('mi_crm_promoters', JSON.stringify(updated));
-    if (onPromotersChange) {
-      onPromotersChange(updated);
-    }
-  };
+    const q = query(
+      collection(db, "promoters"),
+      where("ownerId", "==", effectiveUid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetched = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as Promoter));
+
+      // Migración automática inicial si el usuario tiene datos previos en localStorage
+      if (fetched.length === 0) {
+        const saved = localStorage.getItem('mi_crm_promoters');
+        if (saved) {
+          try {
+            const localData: Promoter[] = JSON.parse(saved);
+            if (localData && localData.length > 0) {
+              localData.forEach(async (p) => {
+                await setDoc(doc(db, "promoters", p.id), removeUndefined({
+                  ...p,
+                  ownerId: effectiveUid
+                }));
+              });
+              localStorage.removeItem('mi_crm_promoters');
+            }
+          } catch (e) {
+            console.error("Error migrando promotores desde localStorage a Firestore:", e);
+          }
+        }
+      }
+
+      setFirestorePromoters(fetched);
+      if (onPromotersChange) {
+        onPromotersChange(fetched);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "promoters");
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const promoters = propsPromoters || (user ? firestorePromoters : []);
 
   const [newPromoter, setNewPromoter] = useState({ name: '', phone: '', code: '' });
   const [editingPromoter, setEditingPromoter] = useState<Promoter | null>(null);
@@ -47,7 +85,7 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Track paid commission quote IDs
+  // Registro de comisiones liquidadas por cotización
   const [paidQuoteCommissions, setPaidQuoteCommissions] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('mi_crm_paid_quote_commissions');
     if (saved) {
@@ -60,14 +98,13 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
     localStorage.setItem('mi_crm_paid_quote_commissions', JSON.stringify(paidQuoteCommissions));
   }, [paidQuoteCommissions]);
 
-  // Build commission sales records from actual quotes with exact product details
+  // Construir registros de venta e historial de comisiones a partir de cotizaciones
   const quoteCommissions: CommissionRecord[] = useMemo(() => {
     const records: CommissionRecord[] = [];
     previousQuotes.forEach((quote: any) => {
       const clientInfo = quote.clientInfo || {};
       const items = quote.items || [];
       
-      // Detailed summary of products sold with unit price and quantities
       const productsSummary = items.map((i: any) => {
         const desc = i.description || 'Producto';
         const qty = i.quantity || 1;
@@ -117,7 +154,7 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
     return records;
   }, [previousQuotes, paidQuoteCommissions]);
 
-  // Compute dynamic total earned per promoter from actual saved sales
+  // Cálculo dinámico de total ganado por promotor basado en cotizaciones reales
   const promotersWithStats = useMemo(() => {
     return promoters.map(p => {
       let earned = 0;
@@ -136,10 +173,12 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
     });
   }, [promoters, quoteCommissions]);
 
-  const handleAddPromoter = () => {
+  const handleAddPromoter = async () => {
     if (!newPromoter.name.trim()) return;
+    const effectiveUid = localStorage.getItem('impersonatedUserId') || user?.uid || auth.currentUser?.uid;
+    const promoterId = `prom-${Date.now()}`;
     const promoter: Promoter = {
-      id: `prom-${Date.now()}`,
+      id: promoterId,
       name: newPromoter.name.trim(),
       phone: newPromoter.phone.trim(),
       code: newPromoter.code.trim().toUpperCase() || newPromoter.name.trim().split(' ')[0].toUpperCase() + '10',
@@ -147,35 +186,46 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
       status: 'active',
       totalEarned: 0,
       totalPaid: 0,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ownerId: effectiveUid
     };
-    updatePromotersList([promoter, ...promoters]);
+
+    if (effectiveUid) {
+      await setDoc(doc(db, "promoters", promoterId), removeUndefined(promoter));
+    }
+
     setNewPromoter({ name: '', phone: '', code: '' });
     setShowAddModal(false);
   };
 
-  const handleSaveEditPromoter = () => {
+  const handleSaveEditPromoter = async () => {
     if (!editingPromoter || !editingPromoter.name.trim()) return;
-    const updated = promoters.map(p => p.id === editingPromoter.id ? editingPromoter : p);
-    updatePromotersList(updated);
+    const effectiveUid = localStorage.getItem('impersonatedUserId') || user?.uid || auth.currentUser?.uid;
+    if (effectiveUid) {
+      await setDoc(doc(db, "promoters", editingPromoter.id), removeUndefined({
+        ...editingPromoter,
+        ownerId: effectiveUid
+      }), { merge: true });
+    }
     setEditingPromoter(null);
   };
 
-  const togglePromoterStatus = (id: string) => {
-    const updated = promoters.map(p => {
-      if (p.id === id) {
-        const nextStatus = p.status === 'inactive' ? 'active' : 'inactive';
-        return { ...p, status: nextStatus as 'active' | 'inactive' };
-      }
-      return p;
-    });
-    updatePromotersList(updated);
+  const togglePromoterStatus = async (id: string) => {
+    const target = promoters.find(p => p.id === id);
+    if (!target) return;
+    const nextStatus = target.status === 'inactive' ? 'active' : 'inactive';
+    const effectiveUid = localStorage.getItem('impersonatedUserId') || user?.uid || auth.currentUser?.uid;
+    if (effectiveUid) {
+      await setDoc(doc(db, "promoters", id), { status: nextStatus }, { merge: true });
+    }
   };
 
-  const handleDeletePromoter = (id: string) => {
+  const handleDeletePromoter = async (id: string) => {
     if (window.confirm("¿Seguro que deseas eliminar este promotor? Sus registros se conservarán en el historial.")) {
-      const updated = promoters.filter(p => p.id !== id);
-      updatePromotersList(updated);
+      const effectiveUid = localStorage.getItem('impersonatedUserId') || user?.uid || auth.currentUser?.uid;
+      if (effectiveUid) {
+        await deleteDoc(doc(db, "promoters", id));
+      }
     }
   };
 
@@ -185,15 +235,17 @@ export const PromotersModule: React.FC<PromotersModuleProps> = ({
     setPayoutInputAmount(pending > 0 ? pending : 0);
   };
 
-  const handleExecutePayout = () => {
+  const handleExecutePayout = async () => {
     if (!payoutModalPromoter || payoutInputAmount <= 0) return;
-    const updated = promoters.map(p => {
-      if (p.id === payoutModalPromoter.id) {
-        return { ...p, totalPaid: p.totalPaid + payoutInputAmount };
-      }
-      return p;
-    });
-    updatePromotersList(updated);
+    const effectiveUid = localStorage.getItem('impersonatedUserId') || user?.uid || auth.currentUser?.uid;
+    const newPaidTotal = (payoutModalPromoter.totalPaid || 0) + payoutInputAmount;
+
+    if (effectiveUid) {
+      await setDoc(doc(db, "promoters", payoutModalPromoter.id), {
+        totalPaid: newPaidTotal
+      }, { merge: true });
+    }
+
     if (onRegisterCashOutflow) {
       onRegisterCashOutflow(payoutInputAmount, `PAGO COMISIÓN: ${payoutModalPromoter.name.toUpperCase()} (${payoutModalPromoter.code})`);
     }
