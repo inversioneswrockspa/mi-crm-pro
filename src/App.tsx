@@ -590,7 +590,12 @@ export default function App() {
       const apiKey = getGeminiApiKey();
       const ai = new GoogleGenAI({ apiKey });
 
-      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+      const fileNameLower = file.name.toLowerCase();
+      const isExcel = fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls') || fileNameLower.endsWith('.csv');
+      const isPdf = file.type === 'application/pdf' || fileNameLower.endsWith('.pdf');
+      const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(fileNameLower);
+
+      if (isExcel) {
         const reader = new FileReader();
         reader.onload = async (evt) => {
           try {
@@ -607,18 +612,21 @@ export default function App() {
               ${JSON.stringify(data.slice(0, 100))}
               
               REGLAS DE EXTRACCIÓN:
-              1. Identifica el Proveedor o Comercio (ej. "Sodimac", "PC Factory", "Copec"). Si es un listado de múltiples facturas del SII, escoge el emisor de la primera factura relevante o resume.
-              2. Identifica el Monto Neto total (netAmount) de la compra (valor numérico sin decimales). Si el archivo del SII muestra Netos, súmalos.
+              1. Identifica el Proveedor o Comercio (ej. "Sodimac", "PC Factory", "Copec", "LORE SPA").
+              2. Identifica el Monto Neto total (netAmount) de la compra (valor numérico entero sin decimales).
               3. Identifica el Número de Factura o Folio como "documentNumber" (si existe).
               4. Clasifica el gasto en una de estas categorías: "insumos", "herramientas", "publicidad", "servicios", "otros".
-              5. Responde ÚNICAMENTE con el objeto JSON: { provider, netAmount, documentNumber, category }. No uses markdown, explicaciones ni textos adicionales.`,
+              5. Responde ÚNICAMENTE con el objeto JSON: { provider, netAmount, documentNumber, category }. No uses markdown ni textos adicionales.`,
               config: {
                 responseMimeType: "application/json",
                 temperature: 0.1,
               }
             });
 
-            const result = JSON.parse(response.text);
+            let rawText = response.text || '{}';
+            rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const result = JSON.parse(rawText);
+
             const net = Number(result.netAmount) || 0;
             const iva = Math.round(net * 0.19);
             const total = net + iva;
@@ -632,7 +640,7 @@ export default function App() {
               documentNumber: result.documentNumber || '',
               category: (['insumos', 'herramientas', 'publicidad', 'servicios', 'otros'].includes(result.category) ? result.category : 'insumos') as any
             }));
-            alert("Excel/CSV procesado. Se han cargado los datos en el formulario (IVA del 19% calculado automáticamente).");
+            alert("Excel/CSV procesado. Se han cargado los datos en el formulario (IVA del 19% calculated automáticamente).");
           } catch (err) {
             console.error(err);
             alert("Error al parsear el Excel con IA.");
@@ -641,12 +649,13 @@ export default function App() {
           }
         };
         reader.readAsArrayBuffer(file);
-      } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+      } else if (isImage || isPdf) {
         const reader = new FileReader();
         reader.onload = async (evt) => {
           try {
             const base64Data = (evt.target?.result as string).split(',')[1];
-            
+            const determinedMimeType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+
             const response = await generateContentWithRetry(ai, {
               contents: [
                 {
@@ -654,17 +663,17 @@ export default function App() {
                     {
                       inlineData: {
                         data: base64Data,
-                        mimeType: file.type
+                        mimeType: determinedMimeType
                       }
                     },
-                    { text: `Analiza esta boleta o factura de compra chilena.
+                    { text: `Analiza esta boleta o factura electrónica de compra chilena.
                     Identifica:
-                    - El nombre del Proveedor o Emisor ("provider")
-                    - El monto neto ("netAmount") de la compra (si solo sale el total, calcula el neto dividiendo el total por 1.19 y redondeando)
-                    - El número de folio o documento ("documentNumber")
+                    - El nombre del Proveedor o Razón Social Emisora ("provider") (Ejemplo: "LORE SPA", "Sodimac", "PC Factory").
+                    - El Monto Neto ("netAmount") de la compra como número entero en pesos chilenos (Ejemplo: si dice MONTO NETO $174.773, extrae 174773. Si solo sale el Total Bruto $207.980 y no indica Neto, divide el total por 1.19 y redondea).
+                    - El número de folio o factura ("documentNumber") (Ejemplo: si indica Factura Electrónica N°678, extrae "678").
                     - Clasifica la compra en una de estas categorías ("category"): "insumos", "herramientas", "publicidad", "servicios", "otros".
                     
-                    Responde ÚNICAMENTE con el objeto JSON: { provider, netAmount, documentNumber, category } sin explicaciones.` }
+                    Responde ÚNICAMENTE con el objeto JSON: { "provider": string, "netAmount": number, "documentNumber": string, "category": string } sin etiquetas de código ni textos explicativos.` }
                   ]
                 }
               ],
@@ -674,7 +683,10 @@ export default function App() {
               }
             });
 
-            const result = JSON.parse(response.text);
+            let rawText = response.text || '{}';
+            rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const result = JSON.parse(rawText);
+
             const net = Number(result.netAmount) || 0;
             const iva = Math.round(net * 0.19);
             const total = net + iva;
@@ -688,10 +700,10 @@ export default function App() {
               documentNumber: result.documentNumber || '',
               category: (['insumos', 'herramientas', 'publicidad', 'servicios', 'otros'].includes(result.category) ? result.category : 'insumos') as any
             }));
-            alert("Documento procesado. Se han cargado los datos en el formulario (IVA del 19% calculado automáticamente).");
+            alert(`Documento procesado con éxito. Se cargaron los datos: ${result.provider || 'Proveedor'} (Folio N°${result.documentNumber || 'S/N'}, Neto: $${net.toLocaleString()}).`);
           } catch (err) {
-            console.error(err);
-            alert("Error al analizar el documento con IA.");
+            console.error("Error al analizar documento:", err);
+            alert("Error al analizar el documento con IA. Asegúrate de que el PDF o imagen sea legible.");
           } finally {
             setIsAiUploadingPurchase(false);
           }

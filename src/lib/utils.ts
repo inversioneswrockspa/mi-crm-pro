@@ -127,7 +127,7 @@ export const parseCLP = (value: string | number | undefined | null): number => {
 export const generateContentWithRetry = async (
   ai: any,
   options: any,
-  modelsToTry: string[] = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.0-flash']
+  modelsToTry: string[] = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
 ): Promise<any> => {
   let lastError: any = null;
   for (const model of modelsToTry) {
