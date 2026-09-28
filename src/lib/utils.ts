@@ -148,10 +148,13 @@ export const generateContentWithRetry = async (
   throw lastError || new Error("Todos los modelos de Gemini fallaron.");
 };
 
-export const getGeminiApiKey = (): string => {
+export const getGeminiApiKey = (customKey?: string): string => {
+  if (customKey && customKey.trim()) return customKey.trim();
   const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (envKey && envKey !== 'DUMMY_KEY') return envKey;
-  return "AIzaSyC6bLavfZee4DnWV5_RR4_ol4Z0JB5ixOQ";
+  if (envKey && envKey !== 'DUMMY_KEY' && envKey.trim()) return envKey.trim();
+  const localKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null;
+  if (localKey && localKey.trim()) return localKey.trim();
+  return "";
 };
 
 

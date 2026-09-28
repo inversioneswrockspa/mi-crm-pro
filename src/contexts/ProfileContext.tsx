@@ -16,6 +16,7 @@ interface UserProfile {
   role: string;
   companyLogo: string;
   paymentInfo: string;
+  geminiApiKey?: string;
   isPro?: boolean;
   trialEndsAt?: number;
 }

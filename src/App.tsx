@@ -585,9 +585,15 @@ export default function App() {
     // Reset target value
     e.target.value = '';
 
+    const apiKey = getGeminiApiKey((userProfile as any)?.geminiApiKey);
+    if (!apiKey) {
+      alert("Falta configurar la API Key de Gemini. Por favor ingresa tu API Key gratuita de Google AI Studio (aistudio.google.com) en Configuración de Perfil.");
+      setShowProfileSettings(true);
+      return;
+    }
+
     setIsAiUploadingPurchase(true);
     try {
-      const apiKey = getGeminiApiKey();
       const ai = new GoogleGenAI({ apiKey });
 
       const fileNameLower = file.name.toLowerCase();
@@ -640,10 +646,16 @@ export default function App() {
               documentNumber: result.documentNumber || '',
               category: (['insumos', 'herramientas', 'publicidad', 'servicios', 'otros'].includes(result.category) ? result.category : 'insumos') as any
             }));
-            alert("Excel/CSV procesado. Se han cargado los datos en el formulario (IVA del 19% calculated automáticamente).");
-          } catch (err) {
+            alert("Excel/CSV procesado. Se han cargado los datos en el formulario (IVA del 19% calculado automáticamente).");
+          } catch (err: any) {
             console.error(err);
-            alert("Error al parsear el Excel con IA.");
+            const msg = err?.message || String(err);
+            if (msg.includes('leaked') || msg.includes('403') || msg.includes('API key') || msg.includes('PERMISSION_DENIED')) {
+              alert("Tu API Key de Gemini no es válida o fue revocada. Por favor ingresa una clave válida en Configuración de Perfil (es gratis en aistudio.google.com).");
+              setShowProfileSettings(true);
+            } else {
+              alert("Error al parsear el Excel con IA: " + msg);
+            }
           } finally {
             setIsAiUploadingPurchase(false);
           }
@@ -701,9 +713,15 @@ export default function App() {
               category: (['insumos', 'herramientas', 'publicidad', 'servicios', 'otros'].includes(result.category) ? result.category : 'insumos') as any
             }));
             alert(`Documento procesado con éxito. Se cargaron los datos: ${result.provider || 'Proveedor'} (Folio N°${result.documentNumber || 'S/N'}, Neto: $${net.toLocaleString()}).`);
-          } catch (err) {
+          } catch (err: any) {
             console.error("Error al analizar documento:", err);
-            alert("Error al analizar el documento con IA. Asegúrate de que el PDF o imagen sea legible.");
+            const msg = err?.message || String(err);
+            if (msg.includes('leaked') || msg.includes('403') || msg.includes('API key') || msg.includes('PERMISSION_DENIED')) {
+              alert("Tu API Key de Gemini no es válida o fue revocada por Google. Por favor ingresa una clave válida en Configuración de Perfil (es gratis en aistudio.google.com).");
+              setShowProfileSettings(true);
+            } else {
+              alert("Error al analizar el documento con IA: " + (msg || "Asegúrate de que el PDF o imagen sea legible."));
+            }
           } finally {
             setIsAiUploadingPurchase(false);
           }
@@ -4925,6 +4943,40 @@ export default function App() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* AI Integration Settings */}
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <Sparkles size={14} className="text-indigo-600" /> Integración con IA (Google Gemini)
+                  </h3>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">API Key de Gemini</label>
+                      <a 
+                        href="https://aistudio.google.com/app/apikey" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                      >
+                        Obtener Key Gratis →
+                      </a>
+                    </div>
+                    <input 
+                      type="password" 
+                      placeholder="Pega tu API Key de Google (Ej: AIzaSy...)"
+                      value={(userProfile as any).geminiApiKey || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setUserProfile({...userProfile, geminiApiKey: val});
+                        if (typeof window !== 'undefined') localStorage.setItem('gemini_api_key', val);
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono"
+                    />
+                    <p className="text-[11px] text-slate-500 ml-1">
+                      Necesario para escanear facturas en PDF, boletas e imágenes con Inteligencia Artificial. Tu clave es privada.
+                    </p>
                   </div>
                 </div>
               </div>

@@ -7,8 +7,11 @@ export interface ExtractedProduct {
   unitPrice: number;
 }
 
-export const extractProductsFromPdf = async (base64Pdf: string): Promise<ExtractedProduct[]> => {
-  const apiKey = getGeminiApiKey();
+export const extractProductsFromPdf = async (base64Pdf: string, customApiKey?: string): Promise<ExtractedProduct[]> => {
+  const apiKey = getGeminiApiKey(customApiKey);
+  if (!apiKey) {
+    throw new Error("Falta configurar la API Key de Gemini. Por favor ingresa tu API Key en la Configuración de Perfil.");
+  }
   const ai = new GoogleGenAI({ apiKey });
 
   // Clean the base64 string if it contains the data URI prefix
@@ -124,8 +127,11 @@ export const extractProductsFromExcelLocal = (rawData: any[]): ExtractedProduct[
     .filter(p => p.name);
 };
 
-export const extractProductsFromExcelAI = async (rawData: any[]): Promise<ExtractedProduct[]> => {
-  const apiKey = getGeminiApiKey();
+export const extractProductsFromExcelAI = async (rawData: any[], customApiKey?: string): Promise<ExtractedProduct[]> => {
+  const apiKey = getGeminiApiKey(customApiKey);
+  if (!apiKey) {
+    throw new Error("Falta configurar la API Key de Gemini. Por favor ingresa tu API Key en la Configuración de Perfil.");
+  }
   const ai = new GoogleGenAI({ apiKey });
   const excelDataStr = JSON.stringify(rawData.slice(0, 300));
 
