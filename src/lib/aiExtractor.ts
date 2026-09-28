@@ -1,7 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { generateContentWithRetry } from './utils';
-
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+import { generateContentWithRetry, getGeminiApiKey } from './utils';
 
 export interface ExtractedProduct {
   name: string;
@@ -10,10 +8,7 @@ export interface ExtractedProduct {
 }
 
 export const extractProductsFromPdf = async (base64Pdf: string): Promise<ExtractedProduct[]> => {
-  if (!apiKey || apiKey === 'DUMMY_KEY') {
-    throw new Error('API Key de Gemini no configurada. Por favor añádela en tu archivo .env');
-  }
-
+  const apiKey = getGeminiApiKey();
   const ai = new GoogleGenAI({ apiKey });
 
   // Clean the base64 string if it contains the data URI prefix
@@ -130,10 +125,7 @@ export const extractProductsFromExcelLocal = (rawData: any[]): ExtractedProduct[
 };
 
 export const extractProductsFromExcelAI = async (rawData: any[]): Promise<ExtractedProduct[]> => {
-  if (!apiKey || apiKey === 'DUMMY_KEY') {
-    throw new Error('API Key de Gemini no configurada. Por favor añádela en tu archivo .env');
-  }
-
+  const apiKey = getGeminiApiKey();
   const ai = new GoogleGenAI({ apiKey });
   const excelDataStr = JSON.stringify(rawData.slice(0, 300));
 

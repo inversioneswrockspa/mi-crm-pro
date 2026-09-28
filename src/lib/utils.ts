@@ -148,3 +148,10 @@ export const generateContentWithRetry = async (
   throw lastError || new Error("Todos los modelos de Gemini fallaron.");
 };
 
+export const getGeminiApiKey = (): string => {
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (envKey && envKey !== 'DUMMY_KEY') return envKey;
+  return "AIzaSyC6bLavfZee4DnWV5_RR4_ol4Z0JB5ixOQ";
+};
+
+

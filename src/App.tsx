@@ -194,7 +194,7 @@ import { useProfile } from './contexts/ProfileContext';
 import { useCatalog, DEFAULT_CATALOG } from './contexts/CatalogContext';
 import { useQuote } from './contexts/QuoteContext';
 import { BudgetItem, ClientInfo, QuoteStatus, QuoteItem, Expense, CashTransaction, CreditLine, CatalogItem, ClientAccount, Shrinkage, PurchaseRecord, ImportBatch } from './types';
-import { removeUndefined, getSafeImageUrl, openPdfInNewTab, handleFirestoreError, OperationType, generateContentWithRetry, formatCLP, parseCLP } from './lib/utils';
+import { removeUndefined, getSafeImageUrl, openPdfInNewTab, handleFirestoreError, OperationType, generateContentWithRetry, formatCLP, parseCLP, getGeminiApiKey } from './lib/utils';
 import { getTaxBreakdown, calcularPrecioAutomatico } from './logic/taxLogic';
 import jsPDF from 'jspdf';
 
@@ -587,12 +587,7 @@ export default function App() {
 
     setIsAiUploadingPurchase(true);
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        alert("Falta configurar la API Key de Gemini en las variables de entorno.");
-        setIsAiUploadingPurchase(false);
-        return;
-      }
+      const apiKey = getGeminiApiKey();
       const ai = new GoogleGenAI({ apiKey });
 
       if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
@@ -725,12 +720,7 @@ export default function App() {
 
     setIsAiImporting(true);
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        alert("Falta configurar la API Key de Gemini en las variables de entorno (VITE_GEMINI_API_KEY).");
-        setIsAiImporting(false);
-        return;
-      }
+      const apiKey = getGeminiApiKey();
       const ai = new GoogleGenAI({ apiKey });
 
       if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
@@ -1099,8 +1089,7 @@ export default function App() {
 
   // Initialize Gemini AI
   const getAiClient = () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) return null;
+    const apiKey = getGeminiApiKey();
     return new GoogleGenAI({ apiKey });
   };
 
